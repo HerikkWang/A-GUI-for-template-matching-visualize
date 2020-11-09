@@ -3,12 +3,15 @@ from PIL import Image, ImageTk
 from tkinter.filedialog import askopenfilename
 import numpy as np
 import cv2
+import time
 
 
 input_img_array = None
 query_img_array = None
 match_array = None
 match_coor = None
+diff_original = None
+diff_save_path = "new_light_condition_1014/diff_results/"
 
 
 def gaussian_low_pass_filter(image, d):
@@ -18,9 +21,11 @@ def gaussian_low_pass_filter(image, d):
     center = np.expand_dims(center, 0)
     center = np.expand_dims(center, 0)
     x_coors = np.expand_dims(np.arange(image.shape[0]), 1)
-    y_coors = np.expand_dims(np.arange(image.shape[1]), 1)
+    y_coors = np.expand_dims(np.arange(image.shape[1]), 0)
     coor_matrix[:, :, 0] += x_coors
     coor_matrix[:, :, 1] += y_coors
+    
+    coor_matrix = coor_matrix.astype(np.float32)
 
     distance_matrix = np.sqrt(np.sum((coor_matrix - center) ** 2, axis=2))
     #     print(distance_matrix.shape)
@@ -42,6 +47,7 @@ def draw_and_show_rectangle(input_img, query_img, coor):
                                 (0, 255, 150), 5)
     w_box = 400
     h_box = 400
+    h, w = input_img.shape[0], input_img.shape[1]
     image_show = Image.fromarray(match_image)
     f1 = 1.0 * w_box / w
     f2 = 1.0 * h_box / h
@@ -77,11 +83,26 @@ def show_diff_result(query_img, match_img):
     return 0
 
 
+def save_diff():
+    save_name = save_file_name_entry.get()
+    if save_name == "":
+        save_name = time.strftime("%Y-%m-%d-%H%M%S", time.localtime(time.time()))
+    if diff_original is not None:
+        diff_save = cv2.cvtColor(diff_original, cv2.COLOR_RGB2BGR)
+        save_path = diff_save_path + save_name + ".jpg"
+        cv2.imwrite(save_path, diff_save)
+    else:
+        print("There is no diff image available.")
+    
+    return 0
+
+
 def show_blurred_diff_result():
+    blur_d = 150
     h, w = query_img_array.shape[0], query_img_array.shape[1]
     match_area = input_img_array[match_coor[0]:match_coor[0] + h, match_coor[1]:match_coor[1] + w].copy()
-    blurred_match_img = gaussian_low_pass_filter(match_area, 150)
-    blurred_query_img = gaussian_low_pass_filter(query_img_array, 150)
+    blurred_match_img = gaussian_low_pass_filter(match_area, blur_d)
+    blurred_query_img = gaussian_low_pass_filter(query_img_array, blur_d)
 
     diff_img_array = (blurred_query_img - blurred_match_img + 127).astype(np.uint8)
     w_box = 200
@@ -182,6 +203,7 @@ def show_template_match_result():
 
 
 def show_original_diff_result():
+    global diff_original 
     diff_original = (query_img_array - match_array + 127).astype(np.uint8)
     w_box = 200
     h_box = 200
@@ -381,6 +403,8 @@ button_y2 = tkinter.Button(Button_group, text='y-', state=tkinter.DISABLED, comm
 button_y2.grid(row=0, column=7)
 button_show_blurred_diff = tkinter.Button(Button_group, text='blurred diff', state=tkinter.DISABLED, command=show_blurred_diff_result)
 button_show_blurred_diff.grid(row=0, column=8)
+button_save_diff_res = tkinter.Button(Button_group, text='save_diff', command=save_diff)
+button_save_diff_res.grid(row=0, column=9)
 
 
 var_coordinate = tkinter.StringVar()
@@ -415,5 +439,9 @@ label_shift_coor_1 = tkinter.Label(info_panel, text="Shift of coordinates: ")
 label_shift_coor_1.pack(side='top', anchor='w')
 label_shift_coor_2 = tkinter.Label(info_panel, textvariable=var_coordinate_shift)
 label_shift_coor_2.pack(side='top', anchor='w')
+label_save_diff = tkinter.Label(info_panel, text="save name for diff image")
+label_save_diff.pack(side='top', anchor='w')
+save_file_name_entry = tkinter.Entry(info_panel)
+save_file_name_entry.pack(side='top', anchor='w')
 
 tkinter.mainloop()
